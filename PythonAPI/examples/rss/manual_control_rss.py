@@ -472,30 +472,18 @@ class World(object):
 # ==============================================================================
 
 class Camera(object):
-# 定义一个名为 `Camera` 的类，这个类大概率是用于模拟环境中相机相关的功能实现，比如相机图像的获取、处理以及显示等操作。
 
     def __init__(self, parent_actor, display_dimensions):
-    # 类的初始化方法，在创建 `Camera` 类的实例时会被调用，用于初始化相机相关的各种属性以及设置相机在模拟世界中的相关参数。
         self.surface = None
-        # 用于存储相机获取的图像数据渲染后的表面对象（在图形库中，表面 `surface` 通常是用于最终显示或者进一步处理图像的对象表示），初始化为 `None`，后续会在获取并处理图像后进行赋值。
         self._parent = parent_actor
-        # 将传入的 `parent_actor` 参数赋值给实例属性 `_parent`，从名称推测这个参数可能是相机所依附的父对象，比如在模拟世界中相机可能挂载在车辆等主体上，这个父对象就是对应的车辆等主体对象。
         self.current_frame = None
-        # 用于存储相机当前获取到的图像帧数据，初始化为 `None`，每当相机获取到新的一帧图像时会进行更新赋值。
         bp_library = self._parent.get_world().get_blueprint_library()
-        # 获取相机父对象（也就是 `_parent` 所代表的对象，如车辆）所在的模拟世界的蓝图库（蓝图库中包含了可以创建各种模拟元素的蓝图模板），通过先获取父对象所在的世界，再调用世界对象的 `get_blueprint_library` 方法来实现。
         bp = bp_library.find('sensor.camera.rgb')
-        # 从蓝图库中查找名为 `sensor.camera.rgb` 的蓝图，这个蓝图应该是用于创建一个能获取RGB彩色图像的相机传感器，后续会基于这个蓝图来创建实际的相机传感器对象。
         bp.set_attribute('image_size_x', str(display_dimensions[0]))
-        # 设置相机蓝图的 `image_size_x` 属性，将其值设置为传入的 `display_dimensions` 参数中表示宽度的元素（通过索引 `0` 获取宽度值，并转换为字符串类型，因为蓝图属性设置可能要求字符串格式的参数），用于指定相机获取图像的宽度尺寸。
         bp.set_attribute('image_size_y', str(display_dimensions[1]))
-        # 类似地，设置相机蓝图的 `image_size_y` 属性，将其值设置为 `display_dimensions` 参数中表示高度的元素（通过索引 `1` 获取高度值，并转换为字符串类型），用于指定相机获取图像的高度尺寸。
         self.sensor = self._parent.get_world().spawn_actor(bp, carla.Transform(carla.Location(
             x=-5.5, z=2.5), carla.Rotation(pitch=8.0)), attach_to=self._parent, attachment_type=carla.AttachmentType.SpringArmGhost)
-        # 在相机父对象所在的世界中，根据上述配置好的蓝图 `bp`，在指定的位置和姿态（通过 `carla.Transform` 来描述位置和旋转信息，这里位置在 `x = -5.5`，`z = 2.5` 处，旋转的 `pitch` 角度为 `8.0` 度）创建相机传感器对象，并将其附着在父对象 `_parent` 上，附着类型为 `carla.AttachmentType.SpringArmGhost`（一种特定的附着方式，可能实现类似弹簧臂的效果，使相机相对父对象有一定的位置和姿态调整灵活性），将创建好的相机传感器对象赋值给实例属性 `self.sensor`。
 
-        # 以下是为了避免循环引用问题的相关操作。在Python中，如果对象之间相互引用形成闭环，可能会导致内存无法正确回收等问题。
-        # 通过 `weakref.ref` 创建对当前 `Camera` 实例（也就是 `self`）的弱引用，弱引用不会增加对象的引用计数，使得对象可以在合适的时候被垃圾回收机制正常回收，将弱引用对象赋值给 `weak_self`。
         # We need to pass the lambda a weak reference to self to avoid
         # circular reference.
         weak_self = weakref.ref(self)
@@ -584,28 +572,48 @@ class VehicleControl(object):
 
     @staticmethod
     def signal_handler(signum, _):
+    # 这是一个静态方法，用于处理接收到的信号。静态方法属于类本身，不需要实例化类就可以调用，通常用于处理与类相关但不依赖于具体实例状态的操作。
+    # 接收信号编号 `signum` 参数以及一个未使用的占位参数（按照Python惯例，用下划线 `_` 表示不使用的参数）。
         print('\nReceived signal {}. Trigger stopping...'.format(signum))
+        # 当接收到信号时，打印出接收到的信号编号以及提示信息，表示接收到信号并即将触发停止相关操作。
         VehicleControl.signal_received = True
+        # 将类属性 `signal_received` 设置为 `True`，这个类属性用于在其他地方（比如循环控制等逻辑中）判断是否接收到了信号，从而决定是否停止某些操作或者整个程序的运行等情况。
 
     def parse_events(self, world, clock, sync_mode):
+    # `parse_events` 方法用于解析处理各种输入事件（如键盘按键事件、鼠标点击事件等），并根据不同的事件类型执行相应的操作，以控制车辆的状态以及模拟世界中的相关显示等功能。
+    # 接收 `world`（模拟世界对象，通过它可以访问和操作世界中的各种元素）、`clock`（可能是用于记录时间相关信息的对象，用于控制更新节奏或者获取当前时间等信息）和 `sync_mode`（可能表示同步模式相关的参数，用于确定模拟世界是否以同步方式运行等情况）这几个参数。
         if VehicleControl.signal_received:
+        # 首先判断类属性 `VehicleControl.signal_received` 是否为 `True`，即是否接收到了特定信号，如果是，则执行以下操作来停止相关循环或操作流程。
             print('\nAccepted signal. Stopping loop...')
             return True
+            # 打印提示信息表示接受了信号并即将停止循环，然后返回 `True`，这个返回值可能在调用该方法的外层循环等逻辑中用于判断是否跳出循环，终止后续操作。
         if isinstance(self._control, carla.VehicleControl):
+        # 判断 `self._control` 是否是 `carla.VehicleControl` 类型的对象（在初始化时创建了这个对象用于存储车辆的控制指令），如果是，则执行以下操作来获取当前的车辆灯光状态备份。
             current_lights = self._lights
+            # 将当前车辆的灯光状态（记录在 `self._lights` 属性中）赋值给 `current_lights` 变量，用于后续在处理事件过程中，根据车辆控制指令的变化来相应地更新车辆灯光状态时做对比和判断等操作。
         for event in pygame.event.get():
+        # 使用 `pygame.event.get()` 获取当前所有待处理的 `pygame` 事件（如键盘按键按下、松开，鼠标点击等事件），然后遍历这些事件，根据不同的事件类型执行相应的操作。
             if event.type == pygame.QUIT:
+            # 如果事件类型是 `pygame.QUIT`，表示用户触发了关闭窗口等退出操作（比如点击了窗口的关闭按钮），则执行以下操作来结束相关操作流程。
                 return True
+                # 返回 `True`，这个返回值同样可能在调用该方法的外层逻辑（如主循环）中用于判断是否跳出循环，终止程序运行或者进行一些清理操作等情况。
             elif event.type == pygame.KEYUP:
+            # 如果事件类型是 `pygame.KEYUP`，表示键盘上的某个按键被松开了，执行以下操作来处理不同按键松开时对应的功能。
                 if self._is_quit_shortcut(event.key):
+                # 调用 `_is_quit_shortcut` 静态方法，判断当前松开的按键是否是用于快捷退出的按键组合，如果是，则执行和 `pygame.QUIT` 事件一样的操作，返回 `True` 来结束相关流程。
                     return True
                 elif event.key == K_BACKSPACE:
+                # 如果松开的按键是 `K_BACKSPACE`（Backspace 键），则根据车辆当前是否处于自动驾驶模式执行不同的操作。
                     if self._autopilot_enabled:
                         world.player.set_autopilot(False)
+                        # 如果车辆处于自动驾驶模式，先关闭自动驾驶模式（通过模拟世界中的车辆对象 `world.player` 调用 `set_autopilot` 方法并传入 `False`）
                         world.restart()
+                        # 然后调用模拟世界对象的 `restart` 方法重新初始化模拟世界相关的各种元素（比如重新创建车辆、设置传感器等）
                         world.player.set_autopilot(True)
+                        # 最后再重新开启自动驾驶模式（再次调用 `set_autopilot` 方法并传入 `True`），实现一种类似重置车辆及相关环境状态的操作。
                     else:
                         world.restart()
+                        # 如果车辆当前未处于自动驾驶模式，直接调用 `world.restart` 方法重新初始化模拟世界相关元素。
                 elif event.key == K_F1:
                     world.hud.toggle_info()
                 elif event.key == K_h or (event.key == K_SLASH and pygame.key.get_mods() & KMOD_SHIFT):
